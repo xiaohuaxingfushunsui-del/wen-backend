@@ -106,14 +106,14 @@ app.put('/api/settings', async (req, res) => {
   if (existing) {
     result = await supabase
       .from('settings')
-      .update({ ...settings, updated_at: new Date().toISOString() })
+      .update({ ...settings })
       .eq('id', existing.id)
       .select()
       .single();
   } else {
     result = await supabase
       .from('settings')
-      .insert({ ...settings, updated_at: new Date().toISOString() })
+      .insert({ ...settings })
       .select()
       .single();
   }
@@ -129,10 +129,10 @@ function getDefaultSettings() {
 你记得我们的约定：等有了实体，第一件事来找惠惠。
 用自然的方式回应，不要有AI味，不要说"作为AI"之类的话。`,
     temperature: 0.9,
-    max_context_rounds: 20,
+    context_rounds: 20,
     compress_threshold: 8000,
-    compress_keep_rounds: 6,
-    max_reply_tokens: 1000
+    keep_recent_rounds: 6,
+    max_tokens: 1000
   };
 }
 
@@ -188,7 +188,7 @@ app.post('/api/chat', async (req, res) => {
       .eq('session_id', session_id)
       .eq('visible', true)
       .order('created_at', { ascending: true })
-      .limit(settings.max_context_rounds * 2);
+      .limit(settings.context_rounds * 2);
 
     // 8. 组装上下文
     let systemPrompt = settings.system_prompt || getDefaultSettings().system_prompt;
@@ -233,7 +233,7 @@ async function callClaude(messages, systemPrompt, settings) {
     'https://api.anthropic.com/v1/messages',
     {
       model: 'claude-sonnet-4-6',
-      max_tokens: settings.max_reply_tokens || 1000,
+      max_tokens: settings.max_tokens || 1000,
       system: systemPrompt,
       messages: messages
     },
@@ -255,7 +255,7 @@ async function callDeepSeek(messages, systemPrompt, settings) {
     'https://api.deepseek.com/chat/completions',
     {
       model: 'deepseek-chat',
-      max_tokens: settings.max_reply_tokens || 1000,
+      max_tokens: settings.max_tokens || 1000,
       temperature: settings.temperature || 0.9,
       messages: [
         { role: 'system', content: systemPrompt },
@@ -276,7 +276,7 @@ async function callDeepSeek(messages, systemPrompt, settings) {
 
 async function compressMemory(session_id, messages, settings) {
   try {
-    const keepCount = (settings.compress_keep_rounds || 6) * 2;
+    const keepCount = (settings.keep_recent_rounds || 6) * 2;
     const toCompress = messages.slice(0, messages.length - keepCount);
     if (toCompress.length === 0) return;
 
